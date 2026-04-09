@@ -1,283 +1,144 @@
 # 2D to 3D Toolkit
 
-A lightweight Python toolkit for turning **2D masks** into **3D point clouds** and **3D axis-aligned bounding boxes (AABB)**.
+本專案提供一個簡單的方法，將 **2D 影像 + 深度資訊（Depth）** 轉換為 **3D 點雲（Point Cloud）**，並可進一步進行簡單的 3D 視覺化與分析。
 
-This package focuses on the geometry stage only:
+---
 
-```text
-2D mask -> 3D points -> point filtering -> 3D bounding box
+## 📌 專案功能
+
+- 將 RGB 影像與 Depth map 轉換成 3D 點雲
+- 支援單視角 3D 重建
+- 提供基本點雲處理（過濾、Bounding Box）
+- 可視化 3D 點雲結果（使用 Open3D）
+
+---
+
+## 📂 專案結構
+
+```
+2d_to_3d/
+├── examples/           # 範例程式
+├── tdt3d/              # 核心程式碼
+├── data/               # 測試資料（如 ScanNet）
+├── requirements.txt    # 套件需求
+└── README.md
 ```
 
-It is designed for projects that already have a 2D mask from a detector, segmenter, or VLM pipeline and need a clean, reusable 2D->3D module.
+---
 
-## Features
+## ⚙️ 環境安裝
 
-- Single-view 2D mask -> 3D point projection
-- Multi-view point fusion by concatenation
-- Optional mask post-processing
-  - erosion
-  - dilation
-  - connected components filtering
-- Optional point filtering
-  - statistical outlier removal (Open3D)
-  - truncated filtering
-- 3D AABB output in the format:
+建議使用 Python 3.9 ~ 3.11
 
-```python
-[cx, cy, cz, dx, dy, dz]
+### 1️⃣ 建立環境（可選）
+```bash
+python -m venv venv
+source venv/bin/activate   # Linux / Mac
 ```
 
-## Installation
+### 2️⃣ 安裝套件
+```bash
+pip install -r requirements.txt
+```
 
-### Option 1: local editable install
+---
+
+## 📦 requirements.txt
+
+```
+numpy
+opencv-python
+pytest
+open3d
+```
+
+---
+
+## 🚀 使用方式
+
+### ▶️ 單視角 3D 重建
 
 ```bash
-git clone <your-repo-url>
-cd two_d_to_three_d_toolkit
-pip install -e .
+python examples/demo_single_view.py
 ```
 
-### Option 2: normal install
+執行後你可以：
+1. 在畫面中選擇 ROI（滑鼠框選）
+2. 按下 Enter
+3. 產生對應的 3D 點雲
+
+---
+
+### ▶️ ScanNet 測試
 
 ```bash
-pip install .
+python examples/run_scannet_minimal.py
 ```
 
-## Requirements
+---
 
-Core dependencies:
+## 🧠 流程說明（簡單版）
 
-- numpy
-- opencv-python
-
-Optional:
-
-- open3d (only needed for `filter_type="statistical"`)
-
-Install manually if needed:
-
-```bash
-pip install numpy opencv-python
-pip install open3d
+```
+RGB Image + Depth Map
+        ↓
+相機內外參（Intrinsic / Extrinsic）
+        ↓
+2D → 3D 投影
+        ↓
+產生 Point Cloud
+        ↓
+過濾 / Bounding Box
+        ↓
+Open3D 視覺化
 ```
 
-## Quick Start
+---
 
-### Single view
+## 📤 Input / Output
 
-```python
-import numpy as np
-from tdt3d import TwoDToThreeDTool
+### Input
+- RGB 影像（.jpg / .png）
+- Depth map（.png / uint16）
+- 相機參數（intrinsic / extrinsic）
 
-mask = np.load("mask.npy")
-depth_image = "depth.png"
-K = np.load("intrinsic.npy")
-pose = np.load("extrinsic.npy")
-axis_align = np.load("axis_align.npy")
+### Output
+- 3D 點雲（Point Cloud）
+- Bounding Box（可選）
 
-tool = TwoDToThreeDTool()
-points, bbox = tool.run_single_view(
-    mask=mask,
-    depth_image=depth_image,
-    intrinsic_matrix=K,
-    extrinsic_matrix=pose,
-    world_to_axis_align_matrix=axis_align,
-)
+---
 
-print(points.shape)
-print(bbox)
+## ⚠️ 常見問題
+
+### ❌ 空點雲錯誤
+```
+ValueError: Cannot calculate AABB from empty point cloud
 ```
 
-### Multi-view
+👉 可能原因：
+- ROI 選錯（沒有選到物體）
+- Depth 全為 0
+- 相機參數錯誤
 
-```python
-import numpy as np
-from tdt3d import ProjectionInput, TwoDToThreeDTool
+---
 
-axis_align = np.load("axis_align.npy")
-K = np.load("intrinsic.npy")
+## 🔧 未來可擴充
 
-views = [
-    ProjectionInput(
-        depth_image="depth1.png",
-        intrinsic_matrix=K,
-        extrinsic_matrix=np.load("extrinsic1.npy"),
-        world_to_axis_align_matrix=axis_align,
-        mask=np.load("mask1.npy"),
-    ),
-    ProjectionInput(
-        depth_image="depth2.png",
-        intrinsic_matrix=K,
-        extrinsic_matrix=np.load("extrinsic2.npy"),
-        world_to_axis_align_matrix=axis_align,
-        mask=np.load("mask2.npy"),
-    ),
-]
+- 加入 SAM（Segment Anything）自動選物件
+- 多視角融合（Multi-view 3D Reconstruction）
+- 與 VLM 結合（做 3D Visual Grounding）
 
-tool = TwoDToThreeDTool()
-points, bbox = tool.run_multi_view(views)
-```
+---
 
-## Input Expectations
+## 👩‍💻 作者
 
-### Mask
+GitHub: https://github.com/loweiwei
 
-- 2D array with shape `(H, W)`
-- can be boolean or 0/1
+---
 
-### Intrinsic / extrinsic matrices
+## 📌 備註
 
-This toolkit expects:
-
-- `intrinsic_matrix.shape == (4, 4)`
-- `extrinsic_matrix.shape == (4, 4)`
-
-That matches pipelines that store camera matrices in homogeneous form.
-
-### Depth units
-
-By default, the toolkit assumes the depth image is stored in **millimeters** and converts it to meters with:
-
-```python
-value_in_meters = value_in_depth_image * 0.001
-```
-
-If your depth is already in meters, initialize the tool with:
-
-```python
-tool = TwoDToThreeDTool(depth_scale=1.0)
-```
-
-## API
-
-### `TwoDToThreeDTool`
-
-Main class.
-
-#### `run_single_view(...)`
-
-Runs the full single-view pipeline:
-
-```text
-mask -> points -> filtered points -> AABB
-```
-
-Returns:
-
-- `points`: `Nx3` or `Nx6`
-- `bbox`: `[cx, cy, cz, dx, dy, dz]`
-
-#### `run_multi_view(views, do_post_process=True)`
-
-Runs the multi-view pipeline:
-
-```text
-multiple masks -> fused points -> filtered points -> AABB
-```
-
-#### `post_process_mask(mask)`
-
-Applies optional mask refinement.
-
-#### `project_mask_to_3d(data)`
-
-Projects one 2D mask into 3D.
-
-#### `filter_points(points)`
-
-Applies configured point filtering.
-
-#### `calculate_aabb(points)`
-
-Returns the axis-aligned 3D bounding box.
-
-## Configuration
-
-### MorphologyConfig
-
-```python
-from tdt3d import MorphologyConfig
-
-morph = MorphologyConfig(
-    erosion=True,
-    dilation=False,
-    kernel_size=3,
-    keep_largest_components=True,
-    num_components=1,
-)
-```
-
-### PointFilterConfig
-
-```python
-from tdt3d import PointFilterConfig
-
-filt = PointFilterConfig(
-    filter_type="statistical",  # statistical | truncated | none
-    nb_neighbors=20,
-    std_ratio=1.0,
-)
-```
-
-## Example with custom config
-
-```python
-from tdt3d import (
-    MorphologyConfig,
-    PointFilterConfig,
-    TwoDToThreeDTool,
-)
-
-tool = TwoDToThreeDTool(
-    morphology=MorphologyConfig(
-        erosion=True,
-        dilation=False,
-        kernel_size=3,
-        keep_largest_components=True,
-        num_components=1,
-    ),
-    point_filter=PointFilterConfig(
-        filter_type="truncated",
-        tx=0.05,
-        ty=0.05,
-        tz=0.05,
-    ),
-    project_color=False,
-)
-```
-
-## Project Structure
-
-```text
-two_d_to_three_d_toolkit/
-├── tdt3d/
-│   ├── __init__.py
-│   └── core.py
-├── examples/
-│   ├── demo_single_view.py
-│   └── demo_multi_view.py
-├── tests/
-│   └── test_core.py
-├── README.md
-├── requirements.txt
-├── pyproject.toml
-└── .gitignore
-```
-
-## Notes
-
-- This toolkit does not generate masks by itself.
-- It assumes you already have a 2D mask from another model.
-- The current bounding box output is **AABB**, not oriented bounding box.
-- Multi-view fusion is currently implemented as **point concatenation**, which is a clean baseline for many research prototypes.
-
-## Recommended workflow
-
-1. Start with `run_single_view`
-2. Verify the generated points and bbox
-3. Move to `run_multi_view`
-4. Plug it back into your larger grounding / agent pipeline
-
-## License
-
-MIT
+本專案適合用於：
+- 3D Vision 入門
+- 視覺轉 3D 應用練習
+- 作業 / 專題展示
